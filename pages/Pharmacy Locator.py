@@ -54,13 +54,7 @@ def haversine(lat1, lon1, lat2, lon2):
 def load_db(path="GenericP.csv"):
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip().str.lower()
-    df = df.rename(columns={
-        "name": "name", 
-        "address": "address", 
-        "pin": "pin",
-        "lat": "lat", 
-        "lon": "lon"
-    })
+    df = df.rename(columns={"name": "name", "address": "address", "pin": "pin", "lat": "lat", "lon": "lon"})
     df = df.dropna(subset=["lat", "lon"])
     df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
     return df
@@ -101,7 +95,7 @@ df = load_db()
 cities = unique_cities(df)
 centres = pin_centers(df)
 
-# ─────────────────────────────── Sidebar Filters (Except type)
+# ─────────────────────────────── Sidebar Filters
 with st.sidebar:
     st.header("🔍 Search Filters")
 
@@ -119,18 +113,29 @@ with st.sidebar:
     user_lat, user_lon = (loc["latitude"], loc["longitude"]) if loc and loc.get("latitude") else (None, None)
     radius_km = st.slider("Search radius (km)", 1, 20, 5)
 
+    # Search state
+    if "search_triggered" not in st.session_state:
+        st.session_state["search_triggered"] = False
+
+    def trigger_search():
+        st.session_state["search_triggered"] = True
+
+    st.button("🔍 Search", on_click=trigger_search)
+
     if st.button("🔄 Clear All Filters"):
-        st.experimental_rerun()
+        st.session_state["search_triggered"] = False
+        st.rerun()
 
 # ─────────────────────────────── City Filter
-if city:
+if st.session_state["search_triggered"] and city:
     rows = df[df["address"].str.contains(city, case=False, na=False)]
     if rows.empty:
         st.error("No pharmacies found. Try adjusting city name or filter options.")
     else:
         st.success(f"{len(rows)} pharmacies found in {city.title()}.")
         st.dataframe(rows.drop(columns=["lat", "lon"]), use_container_width=True)
-        show_map(rows, user_location=(user_lat, user_lon), key="city")
+        loc = (user_lat, user_lon) if user_lat is not None and user_lon is not None else None
+        show_map(rows, user_location=loc, key="city")
         dl1, dl2 = st.columns(2)
         pdf = pdf_bytes(rows)
         if pdf: dl1.download_button("Download PDF", pdf, "pharmacies.pdf", "application/pdf")
@@ -138,22 +143,23 @@ if city:
     st.stop()
 
 # ─────────────────────────────── PIN/Area fallback
-if user_lat is None or user_lon is None:
-    if pin in centres:
-        user_lat, user_lon = centres[pin]
-        st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
-    elif area:
-        rows = df[df["address"].str.contains(area, case=False, na=False)]
-        if not rows.empty:
-            user_lat, user_lon = rows[["lat", "lon"]].mean()
-            st.success(f"Using centroid of {area.title()}.")
+if st.session_state["search_triggered"] and (pin or area):
+    if user_lat is None or user_lon is None:
+        if pin in centres:
+            user_lat, user_lon = centres[pin]
+            st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
+        elif area:
+            rows = df[df["address"].str.contains(area, case=False, na=False)]
+            if not rows.empty:
+                user_lat, user_lon = rows[["lat", "lon"]].mean()
+                st.success(f"Using centroid of {area.title()}.")
+            else:
+                st.warning("Area not found.")
         else:
-            st.warning("Area not found.")
-    else:
-        st.info("Enter city / PIN / locality or enable GPS.")
+            st.info("Enter city / PIN / locality or enable GPS.")
 
 # ─────────────────────────────── Nearby Results
-if user_lat is not None and user_lon is not None:
+if st.session_state["search_triggered"] and user_lat is not None and user_lon is not None:
     with st.spinner("Finding nearby pharmacies..."):
         df["distance_km"] = df.apply(lambda r: haversine(user_lat, user_lon, r["lat"], r["lon"]), axis=1)
         rows = df[df["distance_km"] <= radius_km].sort_values("distance_km")
