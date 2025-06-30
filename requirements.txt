@@ -1,12 +1,11 @@
-streamlit>=1.35.0
-pandas>=2.1.4
-numpy>=1.26.4
-openpyxl>=3.1.2         # For reading/writing Excel files
-PyPDF2>=3.0.1           # If exporting prescriptions to PDF
-requests>=2.31.0        # For any API calls
-python-dotenv>=1.0.1    # For managing secrets like API keys
-matplotlib>=3.8.4       # Optional: If you're plotting charts/visuals
-plotly>=5.20.0          # Optional: Interactive charts
-folium>=0.15.1          # Optional: If showing pharmacy maps
-geopy>=2.4.1            # Optional: Location lookups
-jinja2>=3.1.2           # Required by folium/Streamlit
+streamlit
+pandas
+numpy
+pytesseract
+Pillow
+pdf2image
+folium
+streamlit-folium
+streamlit-geolocation
+reportlab
+difflib 
