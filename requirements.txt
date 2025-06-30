@@ -8,3 +8,6 @@ folium
 streamlit-folium
 streamlit-geolocation
 reportlab
+poppler-utils
+tesseract-ocr
+
