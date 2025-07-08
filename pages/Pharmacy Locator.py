@@ -18,6 +18,7 @@ def show_map(rows: pd.DataFrame, user_location=None, highlight_name=None, key="m
     fmap = folium.Map(location=[0, 0], zoom_start=2, control_scale=True, tiles=None)
     folium.TileLayer(GOOGLE_STREET, name="Street View", attr=ATTR, subdomains=SUBDOMAINS).add_to(fmap)
     folium.TileLayer(GOOGLE_SATELLITE, name="Satellite View", attr=ATTR, subdomains=SUBDOMAINS).add_to(fmap)
+
     bounds = []
 
     if user_location:
@@ -57,14 +58,7 @@ def gmaps_navigation_link(from_lat, from_lon, to_lat, to_lon):
 def load_db(path="GenericP.csv"):
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip().str.lower()
-    df = df.rename(columns={
-        "name": "name",
-        "contact": "phone",
-        "address": "address",
-        "pin code": "pin",
-        "latitude": "lat",
-        "longitude": "lon"
-    })
+    df = df.rename(columns={"name": "name", "address": "address", "pin": "pin", "lat": "lat", "lon": "lon"})
     df = df.dropna(subset=["lat", "lon"])
     df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
     return df
@@ -97,7 +91,7 @@ def pdf_bytes(df):
     buf.seek(0)
     return buf.read()
 
-# ─────────────────────────────── Title
+# ─────────────────────────────── Page Title
 st.markdown("<h1 style='text-align:center; color:#015c68;'>PHARMACY LOCATOR</h1>", unsafe_allow_html=True)
 
 # ─────────────────────────────── Load
@@ -105,9 +99,10 @@ df = load_db()
 cities = unique_cities(df)
 centres = pin_centers(df)
 
-# ─────────────────────────────── Sidebar
+# ─────────────────────────────── Sidebar Filters
 with st.sidebar:
     st.header("🔍 Search Filters")
+
     if "search_triggered" not in st.session_state:
         st.session_state["search_triggered"] = False
 
@@ -129,13 +124,14 @@ with st.sidebar:
         st.session_state["search_triggered"] = True
 
     st.button("🔍 Search", on_click=trigger_search)
+
     if st.button("🔄 Clear All Filters"):
         for key in ["search_triggered"]:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()
 
-# ─────────────────────────────── Logic
+# ─────────────────────────────── Triggered Search Logic
 if st.session_state.get("search_triggered"):
     if city:
         rows = df[df["address"].str.contains(city, case=False, na=False)]
@@ -149,8 +145,6 @@ if st.session_state.get("search_triggered"):
                 nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
-                with st.expander("📞 Show Phone Number"):
-                    st.markdown(f"📞 `{row['phone']}`")
                 st.markdown("---")
             st.stop()
 
@@ -184,8 +178,6 @@ if st.session_state.get("search_triggered"):
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
                 st.markdown(f"🛣️ Distance: `{row['distance_km']:.2f} km`")
-                with st.expander("📞 Show Phone Number"):
-                    st.markdown(f"`{row['phone']}`")
                 st.markdown("---")
 
             dl1, dl2 = st.columns(2)
