@@ -1,13 +1,11 @@
-# ─────────────────────────────── Imports
-import os, math, re, io
+import os, math, io
 import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from streamlit_geolocation import streamlit_geolocation
 
-# ─────────────────────────────── Setup
-st.set_page_config(page_title="PHARMACY LOCATOR", layout="wide")
+st.set_page_config(page_title="Pharmacy Locator", layout="wide")
 
 GOOGLE_STREET = "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
 GOOGLE_SATELLITE = "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
@@ -98,15 +96,12 @@ def pdf_bytes(df):
     buf.seek(0)
     return buf.read()
 
-# ─────────────────────────────── Page Title
-st.markdown("<h1 style='text-align:center; color:#015c68;'>PHARMACY LOCATOR</h1>", unsafe_allow_html=True)
-
-# ─────────────────────────────── Load
+# ─────────────────────────────── Load Data
 df = load_db()
 cities = unique_cities(df)
 centres = pin_centers(df)
 
-# ─────────────────────────────── Sidebar Filters
+# ─────────────────────────────── Sidebar
 with st.sidebar:
     st.header("🔍 Search Filters")
 
@@ -138,28 +133,14 @@ with st.sidebar:
                 del st.session_state[key]
         st.rerun()
 
-# ─────────────────────────────── Triggered Search Logic
+# ─────────────────────────────── Main Display
+st.markdown("<h1 style='text-align:center; color:#015c68;'>PHARMACY LOCATOR</h1>", unsafe_allow_html=True)
+
 if st.session_state.get("search_triggered"):
+    rows = pd.DataFrame()
+
     if city:
         rows = df[df["address"].str.contains(city, case=False, na=False)]
-        if rows.empty:
-            st.error("No pharmacies found. Try adjusting city name or filter options.")
-        else:
-            st.success(f"{len(rows)} pharmacies found in {city.title()}.")
-            loc = (user_lat, user_lon) if user_lat is not None and user_lon is not None else None
-            show_map(rows, user_location=loc, key="city")
-            for _, row in rows.iterrows():
-                nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
-                st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
-                st.markdown(f"📍 {row['address']}")
-
-                phone = row.get("phone")
-                if phone and str(phone).strip().lower() != "nan":
-                    with st.expander("📞 Show phone number"):
-                        st.markdown(f"`{phone}`")
-
-                st.markdown("---")
-            st.stop()
 
     elif pin or area:
         if user_lat is None or user_lon is None:
@@ -167,39 +148,33 @@ if st.session_state.get("search_triggered"):
                 user_lat, user_lon = centres[pin]
                 st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
             elif area:
-                rows = df[df["address"].str.contains(area, case=False, na=False)]
-                if not rows.empty:
-                    user_lat, user_lon = rows[["lat", "lon"]].mean()
+                area_rows = df[df["address"].str.contains(area, case=False, na=False)]
+                if not area_rows.empty:
+                    user_lat, user_lon = area_rows[["lat", "lon"]].mean()
                     st.success(f"Using centroid of {area.title()}.")
                 else:
                     st.warning("Area not found.")
-            else:
-                st.info("Enter city / PIN / locality or enable GPS.")
-
-    if user_lat is not None and user_lon is not None:
-        with st.spinner("Finding nearby pharmacies..."):
+        if user_lat is not None and user_lon is not None:
             df["distance_km"] = df.apply(lambda r: haversine(user_lat, user_lon, r["lat"], r["lon"]), axis=1)
             rows = df[df["distance_km"] <= radius_km].sort_values("distance_km")
 
-        st.markdown(f"<h4 style='color:#015c68;'>🧾 {len(rows)} pharmacies found within {radius_km} km</h4>", unsafe_allow_html=True)
-        if rows.empty:
-            st.warning("No pharmacies found in this range.")
-        else:
-            show_map(rows, user_location=(user_lat, user_lon), key="radius")
-            for _, row in rows.iterrows():
-                nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
-                st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
-                st.markdown(f"📍 {row['address']}")
-
-                phone = row.get("phone")
-                if phone and str(phone).strip().lower() != "nan":
-                    with st.expander("📞 Show phone number"):
-                        st.markdown(f"`{phone}`")
-
+    if rows.empty:
+        st.warning("No pharmacies found. Try adjusting filters or location.")
+    else:
+        st.success(f"{len(rows)} pharmacies found.")
+        show_map(rows, user_location=(user_lat, user_lon), key="map")
+        for _, row in rows.iterrows():
+            nav = gmaps_navigation_link(user_lat, user_lon, row["lat"], row["lon"]) if user_lat and user_lon else "#"
+            st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
+            st.markdown(f"📍 {row['address']}")
+            if "phone" in row and pd.notna(row["phone"]):
+                with st.expander("📞 Show phone number"):
+                    st.markdown(f"`{row['phone']}`")
+            if "distance_km" in row:
                 st.markdown(f"🛣️ Distance: `{row['distance_km']:.2f} km`")
-                st.markdown("---")
+            st.markdown("---")
 
-            dl1, dl2 = st.columns(2)
-            pdf = pdf_bytes(rows)
-            if pdf: dl1.download_button("Download PDF", pdf, "pharmacies.pdf", "application/pdf", key="pdf2")
-            dl2.download_button("Download CSV", rows.to_csv(index=False).encode(), "pharmacies.csv", "text/csv", key="csv2")
+        col1, col2 = st.columns(2)
+        pdf = pdf_bytes(rows)
+        if pdf: col1.download_button("Download PDF", pdf, "pharmacies.pdf", "application/pdf", key="pdf")
+        col2.download_button("Download CSV", rows.to_csv(index=False).encode(), "pharmacies.csv", "text/csv", key="csv")
