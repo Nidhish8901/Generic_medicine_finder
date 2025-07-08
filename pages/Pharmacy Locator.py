@@ -54,29 +54,60 @@ def haversine(lat1, lon1, lat2, lon2):
 def gmaps_navigation_link(from_lat, from_lon, to_lat, to_lon):
     return f"https://www.google.com/maps/dir/{from_lat},{from_lon}/{to_lat},{to_lon}"
 
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+#                  CORRECTED FUNCTION
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
 @st.cache_data
 def load_db(path="GenericP.csv"):
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except FileNotFoundError:
+        st.error(f"Error: The data file '{path}' was not found. Please make sure it's in the correct directory.")
+        st.stop()
+        
     df.columns = df.columns.str.strip().str.lower()
-    df = df.rename(columns={
-        "name": "name",
-        "address": "address",
-        "pin": "pin",
-        "lat": "lat",
-        "lon": "lon",
-        "contact": "phone"
-    })
+    
+    rename_map = {
+        'pharmacy name': 'name',
+        'latitude': 'lat',
+        'longitude': 'lon',
+        'pincode': 'pin'
+    }
+    existing_renames = {k: v for k, v in rename_map.items() if k in df.columns}
+    df = df.rename(columns=existing_renames)
+    
+    # --- FIX: Check for essential columns BEFORE using them ---
+    if 'lat' not in df.columns or 'lon' not in df.columns:
+        st.error(
+            f"Fatal Error: The CSV file '{path}' must contain location columns. "
+            "Please ensure it has columns named 'lat' and 'lon', or 'latitude' and 'longitude'."
+        )
+        st.stop() # Stop the app gracefully
+
+    # Now that we know the columns exist, we can safely process them.
+    df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+    df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
     df = df.dropna(subset=["lat", "lon"])
-    df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
+    
+    if 'pin' in df.columns:
+        df = df.dropna(subset=['pin'])
+        df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
+        
     return df
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+#                END OF CORRECTED FUNCTION
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 @st.cache_data
 def unique_cities(df):
+    if "address" not in df.columns: return []
     return sorted(df["address"].apply(lambda a: str(a).split(",")[-1].strip().title()).unique())
 
 @st.cache_data
 def pin_centers(df):
-    return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
+    if 'pin' in df.columns:
+        return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
+    return {}
 
 def pdf_bytes(df):
     try:
@@ -103,8 +134,12 @@ st.markdown("<h1 style='text-align:center; color:#015c68;'>PHARMACY LOCATOR</h1>
 
 # ─────────────────────────────── Load
 df = load_db()
-cities = unique_cities(df)
-centres = pin_centers(df)
+if not df.empty:
+    cities = unique_cities(df)
+    centres = pin_centers(df)
+else:
+    # Handle case where load_db might return an empty df (though st.stop is preferred)
+    cities, centres = [], {}
 
 # ─────────────────────────────── Sidebar Filters
 with st.sidebar:
@@ -117,7 +152,7 @@ with st.sidebar:
     area = st.text_input("…or type an area / locality", value="").strip()
     city = st.text_input("…or start typing a city", value="").strip()
 
-    if 1 <= len(city) < 50:
+    if 1 <= len(city) < 50 and cities:
         hints = [c for c in cities if c.lower().startswith(city.lower()) and c.lower() != city.lower()][:5]
         if hints:
             st.markdown("*Did you mean:* " + ", ".join(hints))
@@ -139,7 +174,7 @@ with st.sidebar:
         st.rerun()
 
 # ─────────────────────────────── Triggered Search Logic
-if st.session_state.get("search_triggered"):
+if st.session_state.get("search_triggered") and not df.empty:
     if city:
         rows = df[df["address"].str.contains(city, case=False, na=False)]
         if rows.empty:
@@ -152,18 +187,12 @@ if st.session_state.get("search_triggered"):
                 nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
-
-                phone = row.get("phone")
-                if phone and str(phone).strip().lower() != "nan":
-                    with st.expander("📞 Show phone number"):
-                        st.markdown(f"`{phone}`")
-
                 st.markdown("---")
             st.stop()
 
     elif pin or area:
         if user_lat is None or user_lon is None:
-            if pin in centres:
+            if pin and pin in centres:
                 user_lat, user_lon = centres[pin]
                 st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
             elif area:
@@ -190,12 +219,6 @@ if st.session_state.get("search_triggered"):
                 nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
-
-                phone = row.get("phone")
-                if phone and str(phone).strip().lower() != "nan":
-                    with st.expander("📞 Show phone number"):
-                        st.markdown(f"`{phone}`")
-
                 st.markdown(f"🛣️ Distance: `{row['distance_km']:.2f} km`")
                 st.markdown("---")
 
