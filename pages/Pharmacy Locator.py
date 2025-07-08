@@ -54,42 +54,21 @@ def haversine(lat1, lon1, lat2, lon2):
 def gmaps_navigation_link(from_lat, from_lon, to_lat, to_lon):
     return f"https://www.google.com/maps/dir/{from_lat},{from_lon}/{to_lat},{to_lon}"
 
-# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-#                  CORRECTED FUNCTION
-# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
 @st.cache_data
 def load_db(path="GenericP.csv"):
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip().str.lower()
-    
-    rename_map = {
-        'pharmacy name': 'name',
-        'latitude': 'lat',
-        'longitude': 'lon',
-        'pincode': 'pin'
-    }
-    existing_renames = {k: v for k, v in rename_map.items() if k in df.columns}
-    df = df.rename(columns=existing_renames)
-    
-    # --- FIX ---
-    # Ensure 'lat' and 'lon' columns exist before trying to convert them
-    if 'lat' in df.columns and 'lon' in df.columns:
-        # Convert 'lat' and 'lon' to numeric types. Invalid values will become NaN.
-        df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-        df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
-
-        # NOW, drop rows where 'lat' or 'lon' are NaN (either originally or from coercion)
-        df = df.dropna(subset=["lat", "lon"])
-    
-    if 'pin' in df.columns:
-        # Ensure pin is not all NA before trying to process
-        df = df.dropna(subset=['pin'])
-        df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
-        
+    df = df.rename(columns={
+        "name": "name",
+        "address": "address",
+        "pin": "pin",
+        "lat": "lat",
+        "lon": "lon",
+        "contact": "phone"
+    })
+    df = df.dropna(subset=["lat", "lon"])
+    df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
     return df
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-#                END OF CORRECTED FUNCTION
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 @st.cache_data
 def unique_cities(df):
@@ -97,9 +76,7 @@ def unique_cities(df):
 
 @st.cache_data
 def pin_centers(df):
-    if 'pin' in df.columns:
-        return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
-    return {}
+    return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
 
 def pdf_bytes(df):
     try:
@@ -175,12 +152,18 @@ if st.session_state.get("search_triggered"):
                 nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
+
+                phone = row.get("phone")
+                if phone and str(phone).strip().lower() != "nan":
+                    with st.expander("📞 Show phone number"):
+                        st.markdown(f"`{phone}`")
+
                 st.markdown("---")
             st.stop()
 
     elif pin or area:
         if user_lat is None or user_lon is None:
-            if pin and pin in centres:
+            if pin in centres:
                 user_lat, user_lon = centres[pin]
                 st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
             elif area:
@@ -207,6 +190,12 @@ if st.session_state.get("search_triggered"):
                 nav = gmaps_navigation_link(user_lat, user_lon, row['lat'], row['lon']) if user_lat and user_lon else "#"
                 st.markdown(f"🏪 [**{row['name']}**]({nav})", unsafe_allow_html=True)
                 st.markdown(f"📍 {row['address']}")
+
+                phone = row.get("phone")
+                if phone and str(phone).strip().lower() != "nan":
+                    with st.expander("📞 Show phone number"):
+                        st.markdown(f"`{phone}`")
+
                 st.markdown(f"🛣️ Distance: `{row['distance_km']:.2f} km`")
                 st.markdown("---")
 
