@@ -60,27 +60,30 @@ def gmaps_navigation_link(from_lat, from_lon, to_lat, to_lon):
 @st.cache_data
 def load_db(path="GenericP.csv"):
     df = pd.read_csv(path)
-    # Make all column names lowercase and strip whitespace
     df.columns = df.columns.str.strip().str.lower()
     
-    # --- FIX ---
-    # Rename the likely original column names ('latitude', 'longitude') to the desired ones ('lat', 'lon').
-    # We also keep the other renames in case those columns also have different names (e.g., 'pharmacy name').
     rename_map = {
-        'pharmacy name': 'name', # Example: if original is 'Pharmacy Name'
+        'pharmacy name': 'name',
         'latitude': 'lat',
         'longitude': 'lon',
-        'pincode': 'pin'        # Example: if original is 'Pincode'
+        'pincode': 'pin'
     }
-    # We only rename columns that actually exist in the DataFrame to avoid new KeyErrors
     existing_renames = {k: v for k, v in rename_map.items() if k in df.columns}
     df = df.rename(columns=existing_renames)
     
-    # This line will now work because the 'lat' and 'lon' columns have been created by the rename step above.
-    df = df.dropna(subset=["lat", "lon"])
+    # --- FIX ---
+    # Ensure 'lat' and 'lon' columns exist before trying to convert them
+    if 'lat' in df.columns and 'lon' in df.columns:
+        # Convert 'lat' and 'lon' to numeric types. Invalid values will become NaN.
+        df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+        df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
+
+        # NOW, drop rows where 'lat' or 'lon' are NaN (either originally or from coercion)
+        df = df.dropna(subset=["lat", "lon"])
     
-    # Ensure 'pin' column exists before trying to modify it
     if 'pin' in df.columns:
+        # Ensure pin is not all NA before trying to process
+        df = df.dropna(subset=['pin'])
         df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
         
     return df
@@ -94,7 +97,6 @@ def unique_cities(df):
 
 @st.cache_data
 def pin_centers(df):
-    # Ensure 'pin' column exists before grouping by it
     if 'pin' in df.columns:
         return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
     return {}
