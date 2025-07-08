@@ -53,17 +53,6 @@ st.markdown("""
             margin-top: 2.5rem;
             font-weight: 600;
         }
-        .feature-icons {
-            display: flex;
-            justify-content: center;
-            gap: 3rem;
-            margin-top: 1rem;
-            margin-bottom: 1rem;
-        }
-        .feature-icons h3 {
-            margin: 0;
-            font-size: 1.25rem;
-        }
         .footer {
             text-align: center;
             margin-top: 2rem;
@@ -88,19 +77,17 @@ st.markdown('<div class="centered subtitle">Helping you find <b>generic alternat
 st.markdown("<hr />", unsafe_allow_html=True)
 
 # ───────────────────────────────
-# FEATURES
+# FEATURES (Clickable)
 # ───────────────────────────────
 st.markdown('<div class="centered section-title">🔍 What can you do with GenericBro?</div>', unsafe_allow_html=True)
-st.markdown("""
-    <div class="feature-icons">
-        <div>
-            <h3>💊 Generic Medicine Finder</h3>
-        </div>
-        <div>
-            <h3>🗺️ Pharmacy Locator</h3>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.page_link("pages/1_Generic_Medicine_Finder.py", label="💊 Generic Medicine Finder", icon="💊")
+with col2:
+    st.page_link("pages/2_Pharmacy_Locator.py", label="🗺️ Pharmacy Locator", icon="🗺️")
+with col3:
+    st.page_link("pages/3_Prescription_Reader.py", label="📄 Prescription Reader", icon="📄")
 
 st.markdown("<hr />", unsafe_allow_html=True)
 
@@ -108,13 +95,19 @@ st.markdown("<hr />", unsafe_allow_html=True)
 # GET STARTED
 # ───────────────────────────────
 st.markdown('<div class="section-title">🚀 Get Started</div>', unsafe_allow_html=True)
-st.markdown("Select a feature from the sidebar to begin.\n")
+st.markdown("Select a feature from the sidebar or click above to begin.\n")
 st.markdown("- **Generic Medicine Finder**: Discover affordable alternatives.")
 st.markdown("- **Pharmacy Locator**: Find nearby pharmacies with ease.")
+st.markdown("- **Prescription Reader**: Upload a prescription to extract medicines and view alternatives.")
 
 st.markdown("<hr />", unsafe_allow_html=True)
 
 # ───────────────────────────────
 # FOOTER
 # ───────────────────────────────
-st.markdown('<div class="footer">Built with ❤️ by Team GenericBro.</div>', unsafe_allow_html=True)
+st.markdown('''
+    <div class="footer">
+        Built with ❤️ by Team GenericBro. <br />
+        Created by: <b>Nidhish</b>, <b>Gursidak</b>, <b>Varshini</b>, <b>Oindrila</b>, <b>Atharva</b>, <b>Poorvi</b>.
+    </div>
+''', unsafe_allow_html=True)
