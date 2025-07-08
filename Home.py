@@ -83,11 +83,11 @@ st.markdown('<div class="centered section-title">🔍 What can you do with Gener
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.page_link("pages/1_Generic_Medicine_Finder.py", label="💊 Generic Medicine Finder", icon="💊")
+    st.page_link("Generic Medicine Finder", label="💊 Generic Medicine Finder", icon="💊")
 with col2:
-    st.page_link("pages/2_Pharmacy_Locator.py", label="🗺️ Pharmacy Locator", icon="🗺️")
+    st.page_link("Pharmacy Locator", label="🗺️ Pharmacy Locator", icon="🗺️")
 with col3:
-    st.page_link("pages/3_Prescription_Reader.py", label="📄 Prescription Reader", icon="📄")
+    st.page_link("Prescription Reader", label="📄 Prescription Reader", icon="📄")
 
 st.markdown("<hr />", unsafe_allow_html=True)
 
