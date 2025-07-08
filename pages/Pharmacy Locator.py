@@ -54,14 +54,39 @@ def haversine(lat1, lon1, lat2, lon2):
 def gmaps_navigation_link(from_lat, from_lon, to_lat, to_lon):
     return f"https://www.google.com/maps/dir/{from_lat},{from_lon}/{to_lat},{to_lon}"
 
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+#                  CORRECTED FUNCTION
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
 @st.cache_data
 def load_db(path="GenericP.csv"):
     df = pd.read_csv(path)
+    # Make all column names lowercase and strip whitespace
     df.columns = df.columns.str.strip().str.lower()
-    df = df.rename(columns={"name": "name", "address": "address", "pin": "pin", "lat": "lat", "lon": "lon"})
+    
+    # --- FIX ---
+    # Rename the likely original column names ('latitude', 'longitude') to the desired ones ('lat', 'lon').
+    # We also keep the other renames in case those columns also have different names (e.g., 'pharmacy name').
+    rename_map = {
+        'pharmacy name': 'name', # Example: if original is 'Pharmacy Name'
+        'latitude': 'lat',
+        'longitude': 'lon',
+        'pincode': 'pin'        # Example: if original is 'Pincode'
+    }
+    # We only rename columns that actually exist in the DataFrame to avoid new KeyErrors
+    existing_renames = {k: v for k, v in rename_map.items() if k in df.columns}
+    df = df.rename(columns=existing_renames)
+    
+    # This line will now work because the 'lat' and 'lon' columns have been created by the rename step above.
     df = df.dropna(subset=["lat", "lon"])
-    df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
+    
+    # Ensure 'pin' column exists before trying to modify it
+    if 'pin' in df.columns:
+        df["pin"] = df["pin"].astype(str).str.split(".").str[0].str.zfill(6)
+        
     return df
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+#                END OF CORRECTED FUNCTION
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 @st.cache_data
 def unique_cities(df):
@@ -69,7 +94,10 @@ def unique_cities(df):
 
 @st.cache_data
 def pin_centers(df):
-    return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
+    # Ensure 'pin' column exists before grouping by it
+    if 'pin' in df.columns:
+        return df.groupby("pin")[["lat", "lon"]].mean().apply(tuple, axis=1).to_dict()
+    return {}
 
 def pdf_bytes(df):
     try:
@@ -150,7 +178,7 @@ if st.session_state.get("search_triggered"):
 
     elif pin or area:
         if user_lat is None or user_lon is None:
-            if pin in centres:
+            if pin and pin in centres:
                 user_lat, user_lon = centres[pin]
                 st.success(f"Using PIN centroid {pin}: {user_lat:.4f},{user_lon:.4f}")
             elif area:
